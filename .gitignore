@@ -104,5 +104,5 @@ ENV/
 .idea
 
 # data
-data/images/
+data/Images
 tmp
