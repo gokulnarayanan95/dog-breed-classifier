@@ -8,7 +8,7 @@ import tensorflow as tf
     4. Convolution layer #3 : 32 5x5 filters
     5. Pooling layer #2 : 2x2 filter with stride of 2
     6. Dense layer #1 : 1024 neurons with drop-out probability of 0.4
-    7. Dense layer #2 : 220 neurons with one for each class
+    7. Dense layer #2 : 120 neurons with one for each class
     
 """
 
@@ -54,7 +54,7 @@ def create_cnn_model(features, labels, mode):
         inputs=dense, rate=0.4, training=mode == tf.estimator.ModeKeys.TRAIN)
 
     # Logits Layer
-    logits = tf.layers.dense(inputs=dropout, units=220)
+    logits = tf.layers.dense(inputs=dropout, units=120)
 
     predictions = {
         # Generate predictions (for PREDICT and EVAL mode)
@@ -68,7 +68,7 @@ def create_cnn_model(features, labels, mode):
         return tf.estimator.EstimatorSpec(mode=mode, predictions=predictions)
 
         # Calculate Loss (for both TRAIN and EVAL modes)
-    one_hot_labels = tf.one_hot(indices=tf.cast(labels, tf.int32), depth=220)
+    one_hot_labels = tf.one_hot(indices=tf.cast(labels, tf.int32), depth=120)
     loss = tf.losses.softmax_cross_entropy(
         onehot_labels=one_hot_labels, logits=logits)
 
