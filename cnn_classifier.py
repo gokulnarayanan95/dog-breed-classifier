@@ -75,7 +75,7 @@ def main(unused_argv):
     # Creating estimator
     classifier = tf.estimator.Estimator(
         model_fn=network.create_cnn_model,
-        model_dir="/tmp/model_data"
+        model_dir="./tmp/model_data"
     )
 
     # Setting up logging for predictions
