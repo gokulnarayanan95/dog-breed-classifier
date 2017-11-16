@@ -104,5 +104,6 @@ ENV/
 .idea
 
 # data
+*.npy
 data/Images
 tmp
