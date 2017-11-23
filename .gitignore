@@ -106,4 +106,5 @@ ENV/
 # data
 *.npy
 data/Images
+data/Annotation
 tmp
