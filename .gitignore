@@ -107,4 +107,5 @@ ENV/
 *.npy
 data/Images
 data/Annotation
+data/model_weights
 tmp
