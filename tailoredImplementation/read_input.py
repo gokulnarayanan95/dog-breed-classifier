@@ -51,8 +51,9 @@ class DogsRecordObject(object):
 
 def _string_labels_to_one_hot(labels: StringArray) -> IntArray:
     label_dict = pd.DataFrame()
-    label_unique = pd.Series(labels).unique().sort_values()
-    for i in range(len(label_unique)):
+    label_unique = pd.Series(labels).unique()
+    label_unique.sort()
+    for i in range(label_unique.size):
         label_dict[label_unique[i]] = i
     encoded_labels = []
     for label in labels:
