@@ -29,11 +29,13 @@ import pandas as pd
 import xml.etree.ElementTree as ElementTree
 
 StringArray = List[str]
-ArrayOfArrays = List[List[int]]
+IntArray = List[int]
 TensorTuple = Tuple[tf.Tensor, tf.Tensor]
 # Defining constants
 IMAGE_SIZE = 224
 NUM_CLASSES = 120
+NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 50000
+NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 10000
 DATA_DIR = os.path.join("..", "data")
 IMAGE_DIR = os.path.join("..", "data", "Images")
 ANNOTATION_DIR = os.path.join("..", "data", "Annotation")
@@ -41,19 +43,26 @@ IMAGE_EXTN = ".jpg"
 
 
 class DogsRecordObject(object):
-    pass
+    def __init__(self, images=None, label=None, encoded_label=None):
+        self.images = images
+        self.label = label
+        self.encoded_label = encoded_label
 
 
-def _string_labels_to_one_hot(labels: StringArray) -> ArrayOfArrays:
+def _string_labels_to_one_hot(labels: StringArray) -> IntArray:
     label_dict = pd.DataFrame()
     label_unique = pd.Series(labels).unique().sort_values()
     for i in range(len(label_unique)):
         label_dict[label_unique[i]] = i
+    encoded_labels = []
+    for label in labels:
+        encoded_labels.append(int(label_dict[label]))
+
+    return encoded_labels
 
 
-
-def read_images(filename_queue: StringArray,
-                label_array: StringArray) -> DogsRecordObject:
+def _read_images(filename_queue: StringArray,
+                 label_array: StringArray) -> DogsRecordObject:
     result = DogsRecordObject()
     image_reader = tf.WholeFileReader()
     key, value = image_reader.read(filename_queue)
@@ -61,13 +70,18 @@ def read_images(filename_queue: StringArray,
 
     result.images = image_values
     result.label = label_array
+    result.encoded_labels = _string_labels_to_one_hot(label_array)
 
     return result
 
 
-def crop_images(image_data: tf.Tensor, meta_data_path: str) -> tf.Tensor:
+def _crop_images(images: tf.Tensor, meta_data_path: str) -> tf.Tensor:
     meta_data = pd.read_csv(meta_data_path)
-
+    bounding_box = {}
+    bounding_box.offset_height = []
+    bounding_box.offset_width = []
+    bounding_box.target_height = []
+    bounding_box.target_width = []
     for row in meta_data.itertuples():
         folder_name = "%s-%s" % (row.file_name.split('_')[0], row.breed_name)
         filename = os.path.join(ANNOTATION_DIR, folder_name, row.file_name)
@@ -78,9 +92,20 @@ def crop_images(image_data: tf.Tensor, meta_data_path: str) -> tf.Tensor:
         ymin = int(boundary_box.find("ymin").text)
         ymax = int(boundary_box.find("ymax").text)
 
-    sess = tf.Session()
-    image_data = sess.run(image_data)
-    return image_data
+        bounding_box.offset_height.append(ymin)
+        bounding_box.offset_width.append(xmin)
+        bounding_box.target_height.append(ymax - ymin)
+        bounding_box.target_width.append(xmax - xmin)
+
+    cropped_image = tf.image.crop_to_bounding_box(images,
+                                                  bounding_box.offset_height,
+                                                  bounding_box.offset_width,
+                                                  bounding_box.target_height,
+                                                  bounding_box.target_width)
+    resized_image = tf.image.resize_image_with_crop_or_pad(cropped_image,
+                                                           IMAGE_SIZE,
+                                                           IMAGE_SIZE)
+    return resized_image
 
 
 def _generate_image_and_label_batch(image: tf.Tensor,
@@ -122,11 +147,15 @@ def inputs(eval_data: bool, meta_data_path: str,
             raise FileNotFoundError("File \"%s\" not found" % f)
 
     filename_queue = tf.train.string_input_producer(filenames)
-    read_input = read_images(filename_queue)
-    cropped_resized_images = read_input
+    read_input = _read_images(filename_queue, meta_data["breed_name"])
+    cropped_resized_images = _crop_images(read_input.images,
+                                          DATA_DIR + "data_dict.csv")
 
-    min_queue_examples = 10
+    min_fraction_of_examples_in_queue = 0.4
+    min_queue_examples = int((NUM_EXAMPLES_PER_EPOCH_FOR_EVAL if eval_data else
+                              NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN) *
+                             min_fraction_of_examples_in_queue)
 
     return _generate_image_and_label_batch(cropped_resized_images,
-                                           read_input.label,
+                                           read_input.encoded_label,
                                            min_queue_examples, batch_size)
