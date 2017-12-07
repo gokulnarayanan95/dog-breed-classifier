@@ -28,11 +28,8 @@ import read_input
 
 parser = argparse.ArgumentParser()
 
-parser.add_argument('--batch_size', type=int, default=128,
+parser.add_argument('--batch_size', type=int, default=64,
                     help='Number of images to process in a batch.')
-
-parser.add_argument('--data_dir', type=str, default='/tmp/cifar10_data',
-                    help='Path to the CIFAR-10 data directory.')
 
 parser.add_argument('--use_fp16', type=bool, default=False,
                     help='Train the model using fp16.')
@@ -111,17 +108,13 @@ def _variable_with_weight_decay(name, shape, stddev, wd):
 
 
 def inputs(eval_data):
-    """Construct input for CIFAR evaluation using the Reader ops.
+    """Construct input for model evaluation using the Reader ops.
     Args:
       eval_data: bool, indicating if one should use the train or eval data set.
     Returns:
       images: Images.4D tensor of [batch_size, IMAGE_SIZE, IMAGE_SIZE, 3] size.
       labels: Labels.1D tensor of [batch_size] size.
-    Raises:
-      ValueError: If no data_dir
     """
-    if not FLAGS.data_dir:
-        raise ValueError('Please supply a data_dir')
     data_dir = os.path.join(read_input.DATA_DIR, 'data_dict.csv')
     images, labels = read_input.inputs(eval_data=eval_data,
                                        meta_data_path=data_dir,
@@ -131,7 +124,7 @@ def inputs(eval_data):
 
 
 def inference(images):
-    """Build the CIFAR-10 model.
+    """Function for building the model
     Args:
       images: Images returned from distorted_inputs() or inputs().
     Returns:
@@ -168,6 +161,18 @@ def inference(images):
         pre_activation = tf.nn.bias_add(conv, biases)
         conv2 = tf.nn.relu(pre_activation, name=scope.name)
         _activation_summary(conv2)
+
+    # conv3
+    with tf.variable_scope('conv3') as scope:
+        kernel = _variable_with_weight_decay('weights',
+                                             shape=[5, 5, 64, 64],
+                                             stddev=5e-2,
+                                             wd=0.0)
+        conv = tf.nn.conv2d(conv2, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = _variable_on_cpu('biases', [64], tf.constant_initializer(0.1))
+        pre_activation = tf.nn.bias_add(conv, biases)
+        conv3 = tf.nn.relu(pre_activation, name=scope.name)
+        _activation_summary(conv3)
 
     # norm2
     norm2 = tf.nn.lrn(conv2, 4, bias=1.0, alpha=0.001 / 9.0, beta=0.75,
@@ -237,7 +242,7 @@ def loss(logits, labels):
 
 
 def _add_loss_summaries(total_loss):
-    """Add summaries for losses in CIFAR-10 model.
+    """Add summaries for losses in the model.
     Generates moving average for all losses and associated summaries for
     visualizing the performance of the network.
     Args:
@@ -262,7 +267,7 @@ def _add_loss_summaries(total_loss):
 
 
 def train(total_loss, global_step):
-    """Train CIFAR-10 model.
+    """Function for training the model.
     Create an optimizer and apply to all trainable variables. Add moving
     average for all trainable variables.
     Args:

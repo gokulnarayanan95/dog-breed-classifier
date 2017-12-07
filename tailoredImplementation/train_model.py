@@ -42,7 +42,7 @@ parser.add_argument('--log_frequency', type=int, default=10,
 
 
 def train():
-    """Train CIFAR-10 for a number of steps."""
+    """Train the model for a number of steps."""
     with tf.Graph().as_default():
         global_step = tf.train.get_or_create_global_step()
 
@@ -103,7 +103,7 @@ def train():
                 mon_sess.run(train_op)
 
 
-def main(argv=None):  # pylint: disable=unused-argument
+def main(argv=None):
     train()
 
 
