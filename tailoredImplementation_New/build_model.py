@@ -39,8 +39,8 @@ FLAGS = parser.parse_args()
 # Global constants describing the data set.
 IMAGE_SIZE = read_input.IMAGE_SIZE
 NUM_CLASSES = read_input.NUM_CLASSES
+BATCH_SIZE = 64
 NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = read_input.NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN
-NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = read_input.NUM_EXAMPLES_PER_EPOCH_FOR_EVAL
 
 # Constants describing the training process.
 MOVING_AVERAGE_DECAY = 0.9999  # The decay to use for the moving average.
@@ -115,12 +115,14 @@ def inputs(eval_data):
       images: Images.4D tensor of [batch_size, IMAGE_SIZE, IMAGE_SIZE, 3] size.
       labels: Labels.1D tensor of [batch_size] size.
     """
-    data_dir = os.path.join(read_input.DATA_DIR, 'data_dict.csv')
-    images, labels = read_input.inputs(eval_data=eval_data,
-                                       meta_data_path=data_dir,
-                                       batch_size=FLAGS.batch_size)
+    data_dir = os.path.join(read_input.DATA_DIR, 'selected_data_dict.csv')
+    read_input_obj = read_input.PreProcessImages(meta_data=data_dir)
+    if eval_data:
+        binary_inputs = read_input_obj.inputs()
+    else:
+        binary_inputs = read_input_obj.distorted_inputs()
 
-    return images, labels
+    return binary_inputs
 
 
 def inference(images):
@@ -277,24 +279,13 @@ def train(total_loss, global_step):
     Returns:
       train_op: op for training.
     """
-    # Variables that affect learning rate.
-    num_batches_per_epoch = NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN / FLAGS.batch_size
-    decay_steps = int(num_batches_per_epoch * NUM_EPOCHS_PER_DECAY)
-
-    # Decay the learning rate exponentially based on the number of steps.
-    lr = tf.train.exponential_decay(INITIAL_LEARNING_RATE,
-                                    global_step,
-                                    decay_steps,
-                                    LEARNING_RATE_DECAY_FACTOR,
-                                    staircase=True)
-    tf.summary.scalar('learning_rate', lr)
 
     # Generate moving averages of all losses and associated summaries.
     loss_averages_op = _add_loss_summaries(total_loss)
 
     # Compute gradients.
     with tf.control_dependencies([loss_averages_op]):
-        opt = tf.train.GradientDescentOptimizer(lr)
+        opt = tf.train.GradientDescentOptimizer(learning_rate=0.001)
         grads = opt.compute_gradients(total_loss)
 
     # Apply gradients.

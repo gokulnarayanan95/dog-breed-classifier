@@ -44,14 +44,16 @@ MODEL_DATA_DIR = join("..", "tmp")
 IMAGE_DIR = join("..", "data", "Images")
 ANNOTATION_DIR = join("..", "data", "Annotation")
 IMAGE_EXTN = ".jpg"
+NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 0
+READ_FROM_BINARY = True
 
 
 class PreProcessImages(object):
     def __init__(self, meta_data=join(DATA_DIR, "data_dict.csv"),
                  data_dir=DATA_DIR, images_dir=IMAGE_DIR,
-                 image_size=IMAGE_SIZE, model_data_dir = MODEL_DATA_DIR,
+                 image_size=IMAGE_SIZE, model_data_dir=MODEL_DATA_DIR,
                  annotations_dir=ANNOTATION_DIR, image_extn=IMAGE_EXTN,
-                 batch_size=BATCH_SIZE):
+                 batch_size=BATCH_SIZE, one_hot_label_dict=None):
         self.META_DATA = meta_data
         self.DATA_DIR = data_dir
         self.IMAGES_DIR = images_dir
@@ -60,6 +62,7 @@ class PreProcessImages(object):
         self.ANNOTATIONS_DIR = annotations_dir
         self.IMAGE_EXTN = image_extn
         self.BATCH_SIZE = batch_size
+        self.one_hot_label_dict = one_hot_label_dict
 
     @staticmethod
     def _crop_image(image_tensor, bounding_box):
@@ -71,6 +74,16 @@ class PreProcessImages(object):
             target_width=(bounding_box["xmax"] - bounding_box["xmin"])
         )
         return cropped_image_tensor
+
+    def _genereate_one_hot_labels_dict(self, label_list):
+        if self.one_hot_label_dict is not None:
+            return self.one_hot_label_dict
+        else:
+            self.one_hot_label_dict = {}
+            unique_label_list = list(set(label_list))
+            for i, data in enumerate(unique_label_list):
+                self.one_hot_label_dict[data] = i
+            return self.one_hot_label_dict
 
     def _read_image(self, image_meta, is_to_be_cropped):
         image_tools = keras.preprocessing.image
@@ -94,6 +107,7 @@ class PreProcessImages(object):
     def _get_images_meta_with_annotations(self):
         meta_data = pd.read_csv(self.META_DATA)
         images_meta = []
+        label_list = []
 
         for row in meta_data.itertuples():
             folder_name = "%s-%s" % (
@@ -108,6 +122,7 @@ class PreProcessImages(object):
                 "path": join(self.IMAGES_DIR, folder_name,
                              row.file_name + self.IMAGE_EXTN),
                 "class": row.breed_name,
+                "type": row.type,
                 "bounding_box": {
                     "xmin": int(boundary_box.find("xmin").text),
                     "xmax": int(boundary_box.find("xmax").text),
@@ -115,54 +130,100 @@ class PreProcessImages(object):
                     "ymax": int(boundary_box.find("ymax").text)
                 }
             })
+            label_list.append(row.breed_name)
 
-        return images_meta
+        return images_meta, label_list
 
-    def inputs(self):
-        images_meta_data = self._get_images_meta_with_annotations()
+    def distorted_inputs(self):
+        images_meta_data, label_list = self._get_images_meta_with_annotations()
         inputs = np.zeros((self.BATCH_SIZE, self.IMAGE_SIZE,
                            self.IMAGE_SIZE, 3),
                           np.float32)
+        labels = np.zeros((self.BATCH_SIZE, 1), np.int)
         bin_files = []
         batch_number = 0
+        one_hot_convertor = self._genereate_one_hot_labels_dict(label_list)
 
         with tqdm(total=len(images_meta_data),
                   desc="Reading train data") as pbar:
             for i, image_meta in enumerate(images_meta_data):
+                if image_meta["type"] != "train":
+                    pbar.update(1)
+                    continue
                 if i % self.BATCH_SIZE == 0 or \
                         i == (len(images_meta_data) - 1):
-                    np.save(join(self.MODEL_DATA_DIR,
-                                 "image-data-batch-%s" % batch_number), inputs)
-                    bin_files.append(join(self.MODEL_DATA_DIR,
-                                          "image-data-batch-%s" %
-                                          batch_number))
+                    if not READ_FROM_BINARY:
+                        np.save(join(self.MODEL_DATA_DIR, "train",
+                                     "image-data-batch-%s" % batch_number),
+                                inputs)
+                        np.save(join(self.MODEL_DATA_DIR, "train",
+                                     "label-data-batch-%s" % batch_number),
+                                labels)
+                    bin_files.append((
+                        join(self.MODEL_DATA_DIR,
+                             "train/image-data-batch-%s.npy" %
+                             batch_number),
+                        join(self.MODEL_DATA_DIR,
+                             "train/label-data-batch-%s.npy" %
+                             batch_number)
+                    ))
                     inputs = np.zeros((self.BATCH_SIZE, self.IMAGE_SIZE,
                                        self.IMAGE_SIZE, 3),
                                       np.float32)
+                    labels = np.zeros((self.BATCH_SIZE, 1), np.int)
+                    batch_number += 1
+                    gc.collect()
+
+                if not READ_FROM_BINARY:
+                    image_data = self._read_image(image_meta=image_meta,
+                                                  is_to_be_cropped=True)
+                    inputs[(i % self.BATCH_SIZE) - 1] = image_data
+                    labels[(i % self.BATCH_SIZE) - 1] = \
+                        one_hot_convertor[image_meta["class"]]
+                pbar.update(1)
+        return bin_files
+
+    def inputs(self):
+        images_meta_data, label_list = self._get_images_meta_with_annotations()
+        inputs = np.zeros((self.BATCH_SIZE, self.IMAGE_SIZE,
+                           self.IMAGE_SIZE, 3),
+                          np.float32)
+        labels = np.zeros((self.BATCH_SIZE, 1), np.int)
+        bin_files = []
+        batch_number = 0
+        one_hot_convertor = self._genereate_one_hot_labels_dict(label_list)
+
+        with tqdm(total=len(images_meta_data),
+                  desc="Reading test data") as pbar:
+            for i, image_meta in enumerate(images_meta_data):
+                if image_meta["type"] != "test":
+                    pbar.update(1)
+                    continue
+                if i % self.BATCH_SIZE == 0 or \
+                        i == (len(images_meta_data) - 1):
+                    np.save(join(self.MODEL_DATA_DIR, "test",
+                                 "image-data-batch-%s" % batch_number), inputs)
+                    np.save(join(self.MODEL_DATA_DIR, "test",
+                                 "label-data-batch-%s" % batch_number), labels)
+                    bin_files.append((
+                        join(self.MODEL_DATA_DIR,
+                             "test/image-data-batch-%s.npy" %
+                             batch_number),
+                        join(self.MODEL_DATA_DIR,
+                             "test/label-data-batch-%s.npy" %
+                             batch_number)
+                    ))
+                    inputs = np.zeros((self.BATCH_SIZE, self.IMAGE_SIZE,
+                                       self.IMAGE_SIZE, 3),
+                                      np.float32)
+                    labels = np.zeros((self.BATCH_SIZE, 1), np.int)
                     batch_number += 1
                     gc.collect()
 
                 image_data = self._read_image(image_meta=image_meta,
                                               is_to_be_cropped=True)
                 inputs[(i % self.BATCH_SIZE) - 1] = image_data
+                labels[(i % self.BATCH_SIZE) - 1] = \
+                    one_hot_convertor[image_meta["class"]]
                 pbar.update(1)
         return bin_files
-
-
-def main(argv=None):
-    data_dict = pd.read_csv(join(DATA_DIR, "data_dict.csv"))
-    selected_breed_list = list(
-        data_dict.groupby('breed_name').count()
-            .sort_values(by='file_name', ascending=False)
-            .head(NUM_CLASSES).index)
-    selected_data_dict = data_dict[
-        (data_dict["breed_name"].isin(selected_breed_list))]
-    selected_data_dict.to_csv(join(DATA_DIR, "selected_data_dict.csv"))
-    process_input = PreProcessImages(meta_data=join(DATA_DIR,
-                                                    "selected_data_dict.csv"))
-    return process_input.inputs()
-
-
-if __name__ == '__main__':
-    sess = tf.InteractiveSession()
-    tf.app.run()

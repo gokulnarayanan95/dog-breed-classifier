@@ -28,7 +28,7 @@ import build_model as classifier_model
 parser = classifier_model.parser
 
 parser.add_argument('--train_dir', type=str,
-                    default='/tmp/classifier_model_train',
+                    default='tmp/classifier_model_train',
                     help='Directory where to write event logs and checkpoint.')
 
 parser.add_argument('--max_steps', type=int, default=1000000,

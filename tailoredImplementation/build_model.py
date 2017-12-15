@@ -115,7 +115,7 @@ def inputs(eval_data):
       images: Images.4D tensor of [batch_size, IMAGE_SIZE, IMAGE_SIZE, 3] size.
       labels: Labels.1D tensor of [batch_size] size.
     """
-    data_dir = os.path.join(read_input.DATA_DIR, 'data_dict.csv')
+    data_dir = os.path.join(read_input.DATA_DIR, 'selected_data_dict.csv')
     images, labels = read_input.inputs(eval_data=eval_data,
                                        meta_data_path=data_dir,
                                        batch_size=FLAGS.batch_size)
