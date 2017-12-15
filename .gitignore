@@ -104,6 +104,7 @@ ENV/
 .idea
 
 # data
+one-hot-dict.csv
 *.npy
 final_code/data
 Images
