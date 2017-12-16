@@ -107,6 +107,7 @@ ENV/
 one-hot-dict.csv
 *.npy
 final_code/data
+final_code/binary_data
 Images
 Annotation
 tmp
