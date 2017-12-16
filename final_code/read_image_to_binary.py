@@ -53,10 +53,13 @@ IMAGE_SIZE = 224
 IMAGE_EXTN = ".jpg"
 IMAGES_PER_BIN = 256
 
-NUM_CLASSES = 6
+NUM_CLASSES = 15
 
 
 def _convert_images_to_binary():
+    """Reads the images from the directory and converts them into CIFAR
+    binary format and stores them in the directory specified.
+    """
     print("Converting images into binary -> %s" % BIN_DIR)
     data_dict = pd.read_csv(DATA_DICT)
 
@@ -177,6 +180,9 @@ def _convert_images_to_binary():
 
 
 def _create_dirs(delete_if_exists=False):
+    """Create the directories for storing the generated binaries if they do
+    not exist
+    """
     print("Creating dirs...")
     if tf.gfile.Exists(BIN_DIR):
         if delete_if_exists:
@@ -187,6 +193,8 @@ def _create_dirs(delete_if_exists=False):
 
 
 def _check_for_data_files():
+    """Check for the data files to be present in the mentioned directories
+    """
     if not tf.gfile.Exists(DATA_DICT):
         raise ValueError("Data dictionary file is not located in %s" %
                          DATA_DICT)
@@ -197,6 +205,14 @@ def _check_for_data_files():
 
 
 def check_for_binary_data(force_create=False):
+    """Check for the binary files to be present in the directory specified.
+    If it is not present, this function will read the images and generate
+    the binary files for the model.
+
+    Args:
+          force_create: A boolean to specify whether to delete all the old
+          binaries and to create new ones
+    """
     _check_for_data_files()
     if force_create:
         _create_dirs(delete_if_exists=True)

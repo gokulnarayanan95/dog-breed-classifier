@@ -30,7 +30,7 @@ IMAGE_SIZE = read_image_to_binary.IMAGE_SIZE
 
 NUM_CLASSES = read_image_to_binary.NUM_CLASSES
 NUM_EXAMPLES_PER_EPOCH_FOR_TRAIN = 10000
-NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 1000
+NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = 600
 
 
 def read_image_binaries(filename_queue):
@@ -108,7 +108,7 @@ def _generate_batch(image, label, min_queue_examples, batch_size, shuffle):
     # A generic function for creating batches w&w/o shuffling and then read
     # 'batch_size' images + labels from the example queue.
 
-    num_preprocess_threads = 16
+    num_preprocess_threads = 8
     if shuffle:
         images, label_batch = tf.train.shuffle_batch(
             [image, label],
@@ -166,11 +166,8 @@ def distorted_inputs(data_dir, batch_size):
     distorted_image = tf.image.random_contrast(distorted_image,
                                                lower=0.2, upper=1.8)
 
-    # Subtract off the mean and divide by the variance of the pixels.
-    float_image = tf.image.per_image_standardization(distorted_image)
-
     # Set the shapes of tensors.
-    float_image.set_shape([height, width, 3])
+    distorted_image.set_shape([height, width, 3])
     read_input.label.set_shape([1])
 
     # Ensure that the random shuffling has good mixing properties.
@@ -181,7 +178,7 @@ def distorted_inputs(data_dir, batch_size):
           'This will take a few minutes.' % min_queue_examples)
 
     # Generate a batch of images and labels by building up a queue of examples.
-    return _generate_batch(float_image, read_input.label,
+    return _generate_batch(distorted_image, read_input.label,
                            min_queue_examples, batch_size,
                            shuffle=True)
 

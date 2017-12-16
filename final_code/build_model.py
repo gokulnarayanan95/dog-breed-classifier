@@ -14,7 +14,7 @@
 # limitations under the License.
 # =============================================================================
 
-"""Builds the CIFAR-10 network.
+"""Builds the Convolutional Neural Network.
 
 Summary of available functions:
 
@@ -65,9 +65,9 @@ NUM_EXAMPLES_PER_EPOCH_FOR_EVAL = read_input.NUM_EXAMPLES_PER_EPOCH_FOR_EVAL
 
 # Constants describing the training process.
 MOVING_AVERAGE_DECAY = 0.9999  # The decay to use for the moving average.
-NUM_EPOCHS_PER_DECAY = 50.0  # Epochs after which learning rate decays.
+NUM_EPOCHS_PER_DECAY = 150.0  # Epochs after which learning rate decays.
 LEARNING_RATE_DECAY_FACTOR = 0.1  # Learning rate decay factor.
-INITIAL_LEARNING_RATE = 0.01  # Initial learning rate.
+INITIAL_LEARNING_RATE = 0.05  # Initial learning rate.
 
 # If a model is trained with multiple GPUs, prefix all Op names with tower_name
 # to differentiate the operations. Note that this prefix is removed from the
@@ -207,7 +207,7 @@ def generate_model(images):
         _activation_summary(conv1)
 
     # pool1
-    pool1 = tf.nn.max_pool(conv1, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
+    pool1 = tf.nn.max_pool(conv1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                            padding='SAME', name='pool1')
 
     # conv2
@@ -236,33 +236,53 @@ def generate_model(images):
         _activation_summary(conv3)
 
     # pool3
-    pool3 = tf.nn.max_pool(conv3, ksize=[1, 3, 3, 1], strides=[1, 2, 2, 1],
+    pool3 = tf.nn.max_pool(conv3, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
                            padding='SAME', name='pool3')
-    # norm3
-    norm3 = tf.nn.lrn(pool3, 4, bias=1.0, alpha=0.001 / 9.0, beta=0.75,
-                      name='norm3')
-
-    # local4
-    with tf.variable_scope('local4') as scope:
-        reshape = tf.reshape(norm3, [FLAGS.batch_size, -1])
-        dim = reshape.get_shape()[1].value
-        weights = _variable_with_weight_decay('weights', shape=[dim, 384],
-                                              stddev=0.04, wd=0.004)
-        biases = _variable_on_cpu('biases', [384],
+    # conv4
+    with tf.variable_scope('conv4') as scope:
+        kernel = _variable_with_weight_decay('weights',
+                                             shape=[5, 5, 64, 64],
+                                             stddev=5e-2,
+                                             wd=0.4)
+        conv = tf.nn.conv2d(pool3, kernel, [1, 1, 1, 1], padding='SAME')
+        biases = _variable_on_cpu('biases', [64],
                                   tf.constant_initializer(0.1))
-        local4 = tf.nn.relu(tf.matmul(reshape, weights) + biases,
-                            name=scope.name)
-        _activation_summary(local4)
+        pre_activation = tf.nn.bias_add(conv, biases)
+        conv4 = tf.nn.tanh(pre_activation, name=scope.name)
+        _activation_summary(conv4)
 
+    # pool4
+    pool4 = tf.nn.max_pool(conv4, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1],
+                           padding='SAME', name='pool4')
+    
+    # norm4
+    norm4 = tf.nn.lrn(pool4, 4, bias=1.0, alpha=0.001 / 9.0, beta=0.75,
+                      name='norm4')
+
+    # dropout layer
+    dropout = tf.nn.dropout(norm4, keep_prob=0.4, name='dropout')
+    
     # local5
     with tf.variable_scope('local5') as scope:
+        reshape = tf.reshape(dropout, [FLAGS.batch_size, -1])
+        dim = reshape.get_shape()[1].value
+        weights = _variable_with_weight_decay('weights', shape=[dim, 384],
+                                              stddev=0.04, wd=0.04)
+        biases = _variable_on_cpu('biases', [384],
+                                  tf.constant_initializer(0.1))
+        local5 = tf.nn.relu(tf.matmul(reshape, weights) + biases,
+                            name=scope.name)
+        _activation_summary(local5)
+
+    # local6
+    with tf.variable_scope('local6') as scope:
         weights = _variable_with_weight_decay('weights', shape=[384, 192],
                                               stddev=0.04, wd=0.004)
         biases = _variable_on_cpu('biases', [192],
                                   tf.constant_initializer(0.1))
-        local5 = tf.nn.relu(tf.matmul(local4, weights) + biases,
+        local6 = tf.nn.relu(tf.matmul(local5, weights) + biases,
                             name=scope.name)
-        _activation_summary(local5)
+        _activation_summary(local6)
 
     # linear layer(WX + b),
     # We don't apply softmax here because
@@ -273,7 +293,7 @@ def generate_model(images):
                                               stddev=1 / 192.0, wd=None)
         biases = _variable_on_cpu('biases', [NUM_CLASSES],
                                   tf.constant_initializer(0.0))
-        softmax_linear = tf.add(tf.matmul(local5, weights), biases,
+        softmax_linear = tf.add(tf.matmul(local6, weights), biases,
                                 name=scope.name)
         _activation_summary(softmax_linear)
 
@@ -303,7 +323,7 @@ def loss(logits, labels):
 
 
 def _add_loss_summaries(total_loss):
-    """Add summaries for losses in CIFAR-10 model.
+    """Add summaries for losses in created model.
 
     Generates moving average for all losses and associated summaries for
     visualizing the performance of the network.

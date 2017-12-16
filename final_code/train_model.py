@@ -17,13 +17,13 @@
 """The training process for the Dog-Breed Classification problem
 
 Accuracy:
-Yet to be measured
+17%
 
-Speed: With batch_size 128.
+Speed: With batch_size 32.
 
 System              | Step Time (sec/batch)  |     Accuracy
 ------------------------------------------------------------------
-1 GeForce GTX 1050  | Yet to be measured     | Yet to be measured
+1 GeForce GTX 1050  | 0.1sec/batch           | 17%
 
 """
 from __future__ import absolute_import
@@ -47,7 +47,7 @@ parser = build_model.parser
 parser.add_argument('--train_dir', type=str, default='tmp/build_model_train',
                     help='Directory where to write event logs and checkpoint.')
 
-parser.add_argument('--max_steps', type=int, default=6000,
+parser.add_argument('--max_steps', type=int, default=100000,
                     help='Number of batches to run.')
 
 parser.add_argument('--log_device_placement', type=bool, default=False,
@@ -85,10 +85,21 @@ def train():
             def __init__(self):
                 self._step = None
                 self._start_time = None
+                self._saver = None
 
             def begin(self):
                 self._step = -1
                 self._start_time = time.time()
+                self._saver = tf.train.Saver()
+
+            def after_create_session(self, session, coord):
+                # Restore all the variables to this session if existing
+                # model was saved
+                ckpt = tf.train.get_checkpoint_state(FLAGS.train_dir)
+                if ckpt and ckpt.model_checkpoint_path:
+                    # Restores from checkpoint
+                    self._saver.restore(session, ckpt.model_checkpoint_path)
+                    self._step = int(ckpt.model_checkpoint_path[-1])
 
             def before_run(self, run_context):
                 self._step += 1
@@ -101,7 +112,8 @@ def train():
                     self._start_time = current_time
 
                     loss_value = run_values.results
-                    examples_per_sec = FLAGS.log_frequency * FLAGS.batch_size / duration
+                    examples_per_sec = \
+                        FLAGS.log_frequency * FLAGS.batch_size / duration
                     sec_per_batch = float(duration / FLAGS.log_frequency)
 
                     format_str = (
@@ -123,9 +135,8 @@ def train():
 
 def main(argv=None):
     read_image_to_binary.check_for_binary_data()
-    if tf.gfile.Exists(FLAGS.train_dir):
-        tf.gfile.DeleteRecursively(FLAGS.train_dir)
-    tf.gfile.MakeDirs(FLAGS.train_dir)
+    if not tf.gfile.Exists(FLAGS.train_dir):
+        tf.gfile.MakeDirs(FLAGS.train_dir)
     train()
 
 

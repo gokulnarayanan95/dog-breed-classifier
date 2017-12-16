@@ -17,10 +17,10 @@
 """Evaluation code for Dog-Breed Classifier.
 
 Accuracy:
-Yet to be measured
+17%
 
 Speed:
-Yet to be measured
+0.1sec/batch
 """
 from __future__ import absolute_import
 from __future__ import division
@@ -29,9 +29,13 @@ from __future__ import print_function
 from datetime import datetime
 import math
 import time
+import os
 
 import numpy as np
 import tensorflow as tf
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+tf.logging.set_verbosity(tf.logging.ERROR)
 
 import build_model
 
@@ -53,7 +57,7 @@ parser.add_argument('--eval_interval_secs', type=int, default=60 * 5,
 parser.add_argument('--num_examples', type=int, default=10000,
                     help='Number of examples to run.')
 
-parser.add_argument('--run_once', type=bool, default=False,
+parser.add_argument('--run_once', type=bool, default=True,
                     help='Whether to run eval only once.')
 
 
