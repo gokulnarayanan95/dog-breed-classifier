@@ -16,8 +16,8 @@
 
 """Evaluation code for Dog-Breed Classifier.
 
-Accuracy:
-17%
+Accuracy(Top 10):
+15.4%
 
 Speed:
 0.1sec/batch
@@ -102,13 +102,13 @@ def eval_once(saver, summary_writer, top_k_op, summary_op):
                 true_count += np.sum(predictions)
                 step += 1
 
-            # Compute precision @ 1.
+            # Compute precision @ 10.
             precision = true_count / total_sample_count
-            print('%s: precision @ 1 = %.3f' % (datetime.now(), precision))
+            print('%s: precision @ 10 = %.3f' % (datetime.now(), precision))
 
             summary = tf.Summary()
             summary.ParseFromString(sess.run(summary_op))
-            summary.value.add(tag='Precision @ 1', simple_value=precision)
+            summary.value.add(tag='Precision @ 10', simple_value=precision)
             summary_writer.add_summary(summary, global_step)
         except Exception as e:  # pylint: disable=broad-except
             coord.request_stop(e)
@@ -129,7 +129,7 @@ def evaluate():
         logits = build_model.generate_model(images)
 
         # Calculate predictions.
-        top_k_op = tf.nn.in_top_k(logits, labels, 1)
+        top_k_op = tf.nn.in_top_k(logits, labels, 10)
 
         # Restore the moving average version of the learned variables for eval.
         variable_averages = tf.train.ExponentialMovingAverage(

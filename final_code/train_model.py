@@ -21,9 +21,9 @@ Accuracy:
 
 Speed: With batch_size 32.
 
-System              | Step Time (sec/batch)  |     Accuracy
+System              | Step Time (sec/batch)  |     Accuracy(Top 10)
 ------------------------------------------------------------------
-1 GeForce GTX 1050  | 0.1sec/batch           | 17%
+1 GeForce GTX 1050  | 0.5sec/batch           | 15.4%
 
 """
 from __future__ import absolute_import

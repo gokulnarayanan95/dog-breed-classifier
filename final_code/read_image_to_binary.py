@@ -53,7 +53,7 @@ IMAGE_SIZE = 224
 IMAGE_EXTN = ".jpg"
 IMAGES_PER_BIN = 256
 
-NUM_CLASSES = 15
+NUM_CLASSES = 120
 
 
 def _convert_images_to_binary():
